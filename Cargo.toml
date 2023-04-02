@@ -1,0 +1,28 @@
+[package]
+name = "latentspace"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+thiserror = "1"
+unicode-normalization = "0.1"
+half = "2"
+rand = "0.8"
+rand_distr = "0.4"
+ndarray = "0.15"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ort = "1"
+
+[dependencies.image]
+version = "0.24"
+features = ["png"]
+default-features = false
+
+[dependencies.ecow]
+git = "https://github.com/jac3km4/ecow"
+branch = "serde"
+features = ["serde"]
+
+[dev-dependencies]
+pretty_assertions = "1"
