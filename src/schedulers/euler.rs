@@ -6,14 +6,13 @@ use super::{Scheduler, Timesteps};
 #[derive(Debug)]
 pub struct Euler {
     alphas_cumprod: Array1<f32>,
-    init_sigma: f32,
+    init_scale: f32,
     num_steps: usize,
 }
 
 impl Euler {
-    pub fn new(num_train_timesteps: usize, beta_start: f32, beta_end: f32) -> Self {
-        // let betas = Array1::linspace(beta_start, beta_end, num_train_timesteps);
-        let mut betas = Array1::linspace(beta_start.sqrt(), beta_end.sqrt(), num_train_timesteps);
+    pub fn new(num_steps: usize, beta_start: f32, beta_end: f32) -> Self {
+        let mut betas = Array1::linspace(beta_start.sqrt(), beta_end.sqrt(), num_steps);
         betas.iter_mut().for_each(|f| *f = f.powi(2));
 
         let alphas = 1.0 - betas;
@@ -24,7 +23,7 @@ impl Euler {
                 Some(*state)
             })
             .collect();
-        let init_sigma = alphas_cumprod
+        let init_scale = alphas_cumprod
             .iter()
             .map(|&x| ((1. - x) / x).sqrt())
             .max_by_key(|x| x.to_bits())
@@ -32,8 +31,8 @@ impl Euler {
 
         Self {
             alphas_cumprod,
-            init_sigma,
-            num_steps: num_train_timesteps,
+            init_scale,
+            num_steps,
         }
     }
 }
@@ -41,13 +40,13 @@ impl Euler {
 impl Scheduler for Euler {
     fn step(
         &mut self,
-        index: usize,
+        step: usize,
         steps: &Timesteps,
-        latent: ArrayView4<'_, f32>,
+        sample: ArrayView4<'_, f32>,
         output: ArrayView4<'_, f32>,
         _rng: &mut impl Rng,
     ) -> Array4<f32> {
-        &latent + &output * (steps.sigmas[index + 1] - steps.sigmas[index])
+        &sample + &output * (steps.sigmas[step + 1] - steps.sigmas[step])
     }
 
     fn timesteps(&mut self, num_inference_steps: usize) -> Timesteps {
@@ -68,8 +67,8 @@ impl Scheduler for Euler {
         Timesteps { sigmas, timesteps }
     }
 
-    fn sigma_multiplier(&self) -> f32 {
-        self.init_sigma
+    fn init_scale_multiplier(&self) -> f32 {
+        self.init_scale
     }
 
     fn scale_multiplier(&self, sigma: f32) -> f32 {

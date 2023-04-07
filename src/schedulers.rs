@@ -2,12 +2,17 @@ use ndarray::{Array1, Array4, ArrayView4};
 use rand::Rng;
 
 mod euler;
+mod euler_ancestral;
+mod lms;
+
 pub use euler::Euler;
+pub use euler_ancestral::EulerAncestral;
+pub use lms::Lms;
 
 pub trait Scheduler {
     fn step(
         &mut self,
-        index: usize,
+        step: usize,
         steps: &Timesteps,
         sample: ArrayView4<'_, f32>,
         output: ArrayView4<'_, f32>,
@@ -15,7 +20,7 @@ pub trait Scheduler {
     ) -> Array4<f32>;
 
     fn timesteps(&mut self, num_inference_steps: usize) -> Timesteps;
-    fn sigma_multiplier(&self) -> f32;
+    fn init_scale_multiplier(&self) -> f32;
     fn scale_multiplier(&self, sigma: f32) -> f32;
 }
 

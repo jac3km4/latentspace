@@ -68,7 +68,7 @@ impl TextToImage {
                 self.width as usize / 8,
             ),
             || rng.sample(StandardNormal),
-        ) * scheduler.sigma_multiplier();
+        ) * scheduler.init_scale_multiplier();
 
         let now = Instant::now();
 
