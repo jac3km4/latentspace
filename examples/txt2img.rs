@@ -5,6 +5,8 @@ use latentspace::schedulers::Euler;
 use latentspace::{ort, Checkpoint, Device, DeviceConfig, DeviceId};
 
 fn main() -> Result<(), Box<dyn StdError>> {
+    tracing_subscriber::fmt::init();
+
     let env = ort::Environment::builder()
         .with_log_level(ort::LoggingLevel::Verbose)
         .build()?

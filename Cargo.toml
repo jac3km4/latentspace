@@ -26,4 +26,5 @@ features = ["serde"]
 
 [dev-dependencies]
 pretty_assertions = "1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 ort = { version = "1", features = ["cuda", "tensorrt"] }

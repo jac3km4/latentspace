@@ -52,7 +52,11 @@ impl Device {
             Device::Cpu => vec![ort::ExecutionProvider::cpu()],
             Device::Cuda(id) => vec![ort::ExecutionProvider::cuda().with_device_id(id.0)],
             Device::TensorRt(id) => vec![
-                ort::ExecutionProvider::tensorrt().with_device_id(id.0),
+                ort::ExecutionProvider::tensorrt()
+                    .with_device_id(id.0)
+                    .with("trt_fp16_enable", "true")
+                    .with("trt_int8_enable", "true")
+                    .with("trt_context_memory_sharing_enable", "true"),
                 ort::ExecutionProvider::cuda().with_device_id(id.0),
             ],
             Device::DirectMl(id) => vec![ort::ExecutionProvider::directml().with_device_id(id.0)],

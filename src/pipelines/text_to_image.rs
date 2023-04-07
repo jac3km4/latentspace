@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use image::DynamicImage;
 use ndarray::{concatenate, Array4, Axis};
 use ort::tensor::{FromArray, InputTensor};
@@ -68,6 +70,8 @@ impl TextToImage {
             || rng.sample(StandardNormal),
         ) * scheduler.sigma_multiplier();
 
+        let now = Instant::now();
+
         let timesteps = scheduler.timesteps(self.steps);
         for (i, (&ts, &sigma)) in timesteps
             .timesteps
@@ -75,7 +79,12 @@ impl TextToImage {
             .zip(&timesteps.sigmas)
             .enumerate()
         {
-            println!("Step {}/{}", i, timesteps.timesteps.len());
+            println!(
+                "Step {}/{} ({:.2}s)",
+                i,
+                timesteps.timesteps.len(),
+                now.elapsed().as_secs_f32()
+            );
 
             let latent_input = if self.is_classifier_free_guidance() {
                 concatenate![Axis(0), latent, latent] * scheduler.scale_multiplier(sigma)
