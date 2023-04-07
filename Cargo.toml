@@ -26,3 +26,4 @@ features = ["serde"]
 
 [dev-dependencies]
 pretty_assertions = "1"
+ort = { version = "1", features = ["cuda", "tensorrt"] }

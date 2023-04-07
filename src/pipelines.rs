@@ -16,9 +16,9 @@ pub trait PipelineMode: Default {
 }
 
 #[derive(Debug, Default)]
-pub struct F32Mode;
+pub struct Fp32Mode;
 
-impl PipelineMode for F32Mode {
+impl PipelineMode for Fp32Mode {
     type Float = f32;
 
     #[inline]
@@ -28,9 +28,9 @@ impl PipelineMode for F32Mode {
 }
 
 #[derive(Debug, Default)]
-pub struct F16Mode;
+pub struct Fp16Mode;
 
-impl PipelineMode for F16Mode {
+impl PipelineMode for Fp16Mode {
     type Float = f16;
 
     #[inline]

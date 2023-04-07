@@ -1,6 +1,6 @@
 use std::error::Error as StdError;
 
-use latentspace::pipelines::{F16Mode, Prompt, TextToImage};
+use latentspace::pipelines::{Fp16Mode, Prompt, TextToImage};
 use latentspace::schedulers::Euler;
 use latentspace::{ort, Checkpoint, Device, DeviceConfig, DeviceId};
 
@@ -10,9 +10,9 @@ fn main() -> Result<(), Box<dyn StdError>> {
         .build()?
         .into();
 
-    let checkpoint = Checkpoint::<F16Mode>::load(
+    let checkpoint = Checkpoint::<Fp16Mode>::load(
         env,
-        &DeviceConfig::specialized_unet(Device::TensorRt(DeviceId::PRIMARY)),
+        &DeviceConfig::uniform(Device::TensorRt(DeviceId::PRIMARY)),
         // point this to a directory containg the fp16 ONNX model
         "/home/me/checkpoints/CounterfeitAnime-onnx",
     )?;
@@ -23,7 +23,6 @@ fn main() -> Result<(), Box<dyn StdError>> {
             negative: "".to_owned(),
         }],
         seed: rand::random(),
-        steps: 20,
         ..Default::default()
     }
     .execute(&checkpoint, &mut Euler::default())?;

@@ -31,4 +31,4 @@ $COMMAND run --rm \
     -e HF_HOME=/data/cache \
     -e CONVERSION_INPUT=/data/input \
     -e CONVERSION_OUTPUT=/data/output \
-    ghcr.io/jac3km4/sd-to-onnx:0.1.0
+    ghcr.io/jac3km4/sd-to-onnx:0.1.1

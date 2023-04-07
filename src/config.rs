@@ -46,14 +46,17 @@ pub enum Device {
     RocM(DeviceId),
 }
 
-impl From<Device> for ort::ExecutionProvider {
-    fn from(value: Device) -> Self {
-        match value {
-            Device::Cpu => ort::ExecutionProvider::cpu(),
-            Device::Cuda(id) => ort::ExecutionProvider::cuda().with_device_id(id.0),
-            Device::TensorRt(id) => ort::ExecutionProvider::tensorrt().with_device_id(id.0),
-            Device::DirectMl(id) => ort::ExecutionProvider::directml().with_device_id(id.0),
-            Device::RocM(id) => ort::ExecutionProvider::rocm().with_device_id(id.0),
+impl Device {
+    pub fn into_execution_providers(self) -> Vec<ort::ExecutionProvider> {
+        match self {
+            Device::Cpu => vec![ort::ExecutionProvider::cpu()],
+            Device::Cuda(id) => vec![ort::ExecutionProvider::cuda().with_device_id(id.0)],
+            Device::TensorRt(id) => vec![
+                ort::ExecutionProvider::tensorrt().with_device_id(id.0),
+                ort::ExecutionProvider::cuda().with_device_id(id.0),
+            ],
+            Device::DirectMl(id) => vec![ort::ExecutionProvider::directml().with_device_id(id.0)],
+            Device::RocM(id) => vec![ort::ExecutionProvider::rocm().with_device_id(id.0)],
         }
     }
 }

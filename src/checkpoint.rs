@@ -6,7 +6,7 @@ use image::{DynamicImage, Rgb32FImage};
 use ndarray::{Array1, Array2, Array4, ArrayD, ArrayView4, ArrayViewD, Axis, IxDyn};
 use ort::tensor::ort_owned_tensor::ViewHolder;
 use ort::tensor::{FromArray, InputTensor, OrtOwnedTensor, TensorDataToType};
-use ort::{GraphOptimizationLevel, OrtError};
+use ort::OrtError;
 use thiserror::Error;
 
 use crate::config::DeviceConfig;
@@ -32,19 +32,19 @@ impl<Mode: PipelineMode> Checkpoint<Mode> {
     ) -> Result<Self, CheckpointLoadError> {
         let clip = ClipTokenizer::open(model_dir.as_ref().join("tokenizer"))?;
         let text_encoder = ort::SessionBuilder::new(&env)?
-            .with_execution_providers([devices.text_encoder.into()])?
+            .with_execution_providers(devices.text_encoder.into_execution_providers())?
             .with_model_from_file(model_dir.as_ref().join("text_encoder").join("model.onnx"))?;
         let _vae_encoder = ort::SessionBuilder::new(&env)?
-            .with_execution_providers([devices.vae_encoder.into()])?
-            .with_optimization_level(GraphOptimizationLevel::Level3)?
+            .with_execution_providers(devices.vae_encoder.into_execution_providers())?
+            .with_optimization_level(ort::GraphOptimizationLevel::Level3)?
             .with_model_from_file(model_dir.as_ref().join("vae_encoder").join("model.onnx"))?;
         let vae_decoder = ort::SessionBuilder::new(&env)?
-            .with_execution_providers([devices.vae_decoder.into()])?
-            .with_optimization_level(GraphOptimizationLevel::Level3)?
+            .with_execution_providers(devices.vae_decoder.into_execution_providers())?
+            .with_optimization_level(ort::GraphOptimizationLevel::Level3)?
             .with_model_from_file(model_dir.as_ref().join("vae_decoder").join("model.onnx"))?;
         let unet = ort::SessionBuilder::new(&env)?
-            .with_execution_providers([devices.unet.into()])?
-            .with_optimization_level(GraphOptimizationLevel::Level3)?
+            .with_execution_providers(devices.unet.into_execution_providers())?
+            .with_optimization_level(ort::GraphOptimizationLevel::Level3)?
             .with_model_from_file(model_dir.as_ref().join("unet").join("model.onnx"))?;
 
         Ok(Self {

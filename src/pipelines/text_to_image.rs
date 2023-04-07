@@ -88,9 +88,9 @@ impl TextToImage {
                 .map(|&f: &Mode::Float| f.into())
                 .into_dimensionality()?;
             let output = if self.is_classifier_free_guidance() {
-                let uncond = output.index_axis(Axis(0), 0).insert_axis(Axis(0));
-                let text = output.index_axis(Axis(0), 1).insert_axis(Axis(0));
-                &uncond + self.guidance_scale * (&text - &uncond)
+                let uncond = output.index_axis(Axis(0), 0);
+                let text = output.index_axis(Axis(0), 1);
+                (&uncond + self.guidance_scale * (&text - &uncond)).insert_axis(Axis(0))
             } else {
                 output.to_owned()
             };
