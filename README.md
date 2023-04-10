@@ -1,10 +1,10 @@
 # latentspace
 This library aims to be a a complete Stable Diffusion implementation in idiomatic Rust built on top of [ONNX](https://github.com/microsoft/onnxruntime). It's still in an early work-in-progress stage, but some pipelines already work, [see examples](/examples).
 
-<img src="https://user-images.githubusercontent.com/11986158/229587070-4e36f86f-426a-4fd2-91d5-bc936f839765.png" width="160px"/><img src="https://user-images.githubusercontent.com/11986158/229587077-50ac0148-921f-488f-98f2-a15786c7475b.png" width="160px"/>
+<img src="https://user-images.githubusercontent.com/11986158/230987298-519e3229-90bf-4ee2-99d6-bb7cd92952ea.png" width="160px"/><img src="https://user-images.githubusercontent.com/11986158/230987224-cc2c7d39-08c1-4616-b641-619d86a4db3b.png" width="160px"/><img src="https://user-images.githubusercontent.com/11986158/230987601-429c4d45-f780-4845-899f-1deb0971935d.png" width="160px"/><img src="https://user-images.githubusercontent.com/11986158/230987544-44fc4d2d-c5b3-4618-806e-42e884ad6f29.png" width="160px"/>
 
 ## features
-Legend: 🐥 complete, 🐣 partially implemented, 🥚 not available yet
+###### Legend: 🐥 complete, 🐣 partially implemented, 🥚 not available yet
 
 - 🐥 txt2img
 - 🐣 img2img and inpainting
@@ -28,5 +28,5 @@ Checkpoints have to be converted to the ONNX format before use. I've built a con
 ```
 
 ## examples
-- [Text-to-image example](/examples/txt2img.rs)
-- [Image-to-image example](/examples/img2img.rs)
+- [Text-to-image](/examples/txt2img.rs)
+- [Image-to-image](/examples/img2img.rs)
