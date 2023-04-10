@@ -1,15 +1,19 @@
 use std::time::Instant;
 
 use image::DynamicImage;
-use ndarray::{concatenate, Array4, Axis};
+use ndarray::concatenate;
+use ndarray::prelude::*;
 use ort::tensor::{FromArray, InputTensor};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use rand_distr::StandardNormal;
 
 use super::{PipelineError, PipelineMode, Prompt};
-use crate::checkpoint::{Checkpoint, TensorHolder};
+use crate::checkpoint::Checkpoint;
 use crate::schedulers::Scheduler;
+use crate::tokenizers::base::BaseEncoder;
+use crate::tokenizers::lpw::LongPromptEncoder;
+use crate::tokenizers::EncodedPrompts;
 
 #[derive(Debug)]
 pub struct TextToImage {
@@ -19,6 +23,7 @@ pub struct TextToImage {
     pub steps: usize,
     pub seed: u64,
     pub batch: Vec<Prompt>,
+    pub long_prompt_weighting: bool,
 }
 
 impl TextToImage {
@@ -36,14 +41,17 @@ impl Default for TextToImage {
             steps: 20,
             seed: 0,
             batch: vec![],
+            long_prompt_weighting: true,
         }
     }
 }
 
 impl TextToImage {
+    const MAX_EMBEDDING_MULTIPLES: usize = 3;
+
     pub fn execute<Mode>(
         &self,
-        pipeline: &Checkpoint<Mode>,
+        checkpoint: &Checkpoint<Mode>,
         scheduler: &mut impl Scheduler,
     ) -> Result<Vec<DynamicImage>, PipelineError>
     where
@@ -51,11 +59,18 @@ impl TextToImage {
         InputTensor: FromArray<Mode::Float>,
     {
         let mut rng = StdRng::seed_from_u64(self.seed);
+        let positive = self.batch.iter().map(|p| &p.positive);
+        let negative = self.batch.iter().map(|p| &p.negative);
 
-        let negative = pipeline.encode_prompt(self.batch.iter().map(|p| &p.negative))?;
-        let positive = pipeline.encode_prompt(self.batch.iter().map(|p| &p.positive))?;
+        let EncodedPrompts { positive, negative } = if self.long_prompt_weighting {
+            LongPromptEncoder::new(checkpoint, Self::MAX_EMBEDDING_MULTIPLES)
+                .encode(positive, negative)?
+        } else {
+            BaseEncoder::new(checkpoint).encode(positive, negative)?
+        };
+
         let prompt = if self.is_classifier_free_guidance() {
-            concatenate![Axis(0), *negative.view(), *positive.view()]
+            concatenate![Axis(0), negative.view(), positive.view()]
         } else {
             positive.view().to_owned()
         };
@@ -91,11 +106,9 @@ impl TextToImage {
             } else {
                 &latent * scheduler.scale_multiplier(sigma)
             };
-            let output = pipeline.eval_unet(latent_input, ts, prompt.view().to_owned())?;
-            let output = output
-                .view()
-                .map(|&f: &Mode::Float| f.into())
-                .into_dimensionality()?;
+            let output = checkpoint.eval_unet(latent_input, ts, prompt.to_owned().into_dyn())?;
+            let output =
+                Mode::into_f32_array(output.view().clone().into()).into_dimensionality()?;
             let output = if self.is_classifier_free_guidance() {
                 let uncond = output.index_axis(Axis(0), 0);
                 let text = output.index_axis(Axis(0), 1);
@@ -107,6 +120,6 @@ impl TextToImage {
             latent = scheduler.step(i, &timesteps, latent.view(), output.view(), &mut rng);
         }
 
-        pipeline.decode_latents(self.width, self.height, latent.view())
+        checkpoint.decode_latents(self.width, self.height, latent.view())
     }
 }

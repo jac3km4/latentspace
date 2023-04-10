@@ -1,11 +1,9 @@
-use std::ops::Deref;
 use std::path::Path;
 use std::sync::Arc;
 
 use image::{DynamicImage, Rgb32FImage};
-use ndarray::{Array1, Array2, Array4, ArrayD, ArrayView4, ArrayViewD, Axis, IxDyn};
-use ort::tensor::ort_owned_tensor::ViewHolder;
-use ort::tensor::{FromArray, InputTensor, OrtOwnedTensor, TensorDataToType};
+use ndarray::prelude::*;
+use ort::tensor::{FromArray, InputTensor, OrtOwnedTensor};
 use ort::OrtError;
 use thiserror::Error;
 
@@ -58,34 +56,12 @@ impl<Mode: PipelineMode> Checkpoint<Mode> {
         })
     }
 
-    pub fn encode_prompt<I>(
-        &self,
-        batch: I,
-    ) -> Result<impl TensorHolder<Mode::Float> + '_, PipelineError>
-    where
-        I: IntoIterator,
-        I::IntoIter: ExactSizeIterator,
-        I::Item: AsRef<str>,
-    {
-        let it = batch.into_iter();
-        let len = it.len();
-        let positive: Vec<_> = it.flat_map(|str| self.clip.encode(str.as_ref())).collect();
-        let array = Array2::from_shape_vec((len, self.clip.max_length()), positive)?;
-        let result = self
-            .text_encoder
-            .run([InputTensor::from_array(array.into_dyn())])?;
-        let [tensor, _] = &result[..] else {
-            return Err(PipelineError::OutputError(Stage::Text))
-        };
-        Ok(tensor.try_extract()?)
-    }
-
-    pub fn eval_unet(
+    pub(crate) fn eval_unet(
         &self,
         latent: Array4<f32>,
         timestep: f32,
         prompt: ArrayD<Mode::Float>,
-    ) -> Result<impl TensorHolder<Mode::Float> + '_, PipelineError>
+    ) -> Result<OrtOwnedTensor<'_, Mode::Float, IxDyn>, PipelineError>
     where
         InputTensor: FromArray<Mode::Float>,
     {
@@ -101,7 +77,7 @@ impl<Mode: PipelineMode> Checkpoint<Mode> {
         Ok(output)
     }
 
-    pub fn decode_latents(
+    pub(crate) fn decode_latents(
         &self,
         width: u32,
         height: u32,
@@ -133,6 +109,16 @@ impl<Mode: PipelineMode> Checkpoint<Mode> {
     }
 }
 
+impl<M> Checkpoint<M> {
+    pub(crate) fn text_encoder(&self) -> &ort::Session {
+        &self.text_encoder
+    }
+
+    pub(crate) fn tokenizer(&self) -> &ClipTokenizer {
+        &self.clip
+    }
+}
+
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum CheckpointLoadError {
@@ -140,25 +126,4 @@ pub enum CheckpointLoadError {
     Ort(#[from] OrtError),
     #[error("{0}")]
     Tokenizer(#[from] TokenizerError),
-}
-
-pub trait TensorHolder<F> {
-    type Out<'a>: Deref<Target = ArrayViewD<'a, F>>
-    where
-        Self: 'a,
-        F: 'a;
-
-    fn view(&self) -> Self::Out<'_>;
-}
-
-impl<F> TensorHolder<F> for OrtOwnedTensor<'_, F, IxDyn>
-where
-    F: TensorDataToType,
-{
-    type Out<'a> = ViewHolder<'a, F, IxDyn> where Self: 'a;
-
-    #[inline]
-    fn view(&self) -> Self::Out<'_> {
-        self.view()
-    }
 }

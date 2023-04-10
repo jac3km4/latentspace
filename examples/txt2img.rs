@@ -1,7 +1,7 @@
 use std::error::Error as StdError;
 
 use latentspace::pipelines::{Fp16Mode, Prompt, TextToImage};
-use latentspace::schedulers::Euler;
+use latentspace::schedulers::EulerAncestral;
 use latentspace::{ort, Checkpoint, Device, DeviceConfig, DeviceId};
 
 fn main() -> Result<(), Box<dyn StdError>> {
@@ -21,13 +21,14 @@ fn main() -> Result<(), Box<dyn StdError>> {
 
     let images = TextToImage {
         batch: vec![Prompt {
-            positive: "an astronaut having a picnic".to_owned(),
+            positive: "an (astronaut) having a picnic, beautiful, (((colorful))), park, blanket"
+                .to_owned(),
             negative: "".to_owned(),
         }],
         seed: rand::random(),
         ..Default::default()
     }
-    .execute(&checkpoint, &mut Euler::default())?;
+    .execute(&checkpoint, &mut EulerAncestral::default())?;
 
     for (i, img) in images.iter().enumerate() {
         img.to_rgb8().save(format!("{i}.png"))?;

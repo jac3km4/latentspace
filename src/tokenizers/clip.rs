@@ -9,14 +9,14 @@ use serde::Deserialize;
 use thiserror::Error;
 use unicode_normalization::UnicodeNormalization;
 
-type Token = i32;
+pub type Token = i32;
 
 #[derive(Debug)]
 pub struct ClipTokenizer {
+    config: TokenizerConfig,
     start_token: Token,
     end_token: Token,
     pad_token: Token,
-    max_length: usize,
     vocab: HashMap<EcoString, Token>,
     merges: HashMap<(EcoString, EcoString), Token>,
 }
@@ -55,36 +55,42 @@ impl ClipTokenizer {
             .ok_or(TokenizerError::MissingPadToken)?;
 
         Ok(Self {
+            config,
             start_token,
             end_token,
             pad_token,
             vocab,
             merges,
-            max_length: config.model_max_length,
         })
     }
 
-    pub fn encode(&self, text: impl AsRef<str>) -> Vec<Token> {
-        let str: String = text.as_ref().nfc().flat_map(char::to_lowercase).collect();
+    pub fn tokenize(&self, text: &str) -> Vec<Token> {
         let mut tokens = vec![self.start_token];
-        for chunk in ChunkIter::new(&str) {
+        self.tokenize_into(text, &mut tokens);
+        tokens.push(self.end_token);
+        tokens.truncate(self.config.model_max_length);
+
+        let pad_length = self.config.model_max_length - tokens.len();
+        tokens.extend(iter::repeat(self.pad_token).take(pad_length));
+        tokens
+    }
+
+    pub fn tokenize_into(&self, text: &str, out: &mut impl Extend<Token>) {
+        let config = &self.config;
+        let nfc: String = text.nfc().flat_map(char::to_lowercase).collect();
+        for chunk in TokenIter::new(&nfc, &config.bos_token.content, &config.eos_token.content) {
             let chunk = chunk
                 .as_bytes()
                 .iter()
                 .map(|&c| TABLE[usize::from(c)])
                 .collect::<EcoString>();
-            let words = self
+            let word = self
                 .bpe(&chunk)
                 .into_iter()
-                .filter_map(|word| self.vocab.get(&word));
-            tokens.extend(words);
+                .filter_map(|word| self.vocab.get(&word))
+                .copied();
+            out.extend(word);
         }
-        tokens.push(self.end_token);
-        tokens.truncate(self.max_length);
-
-        let pad_length = self.max_length - tokens.len();
-        tokens.extend(iter::repeat(self.pad_token).take(pad_length));
-        tokens
     }
 
     fn bpe(&self, chunk: &str) -> Vec<EcoString> {
@@ -111,8 +117,16 @@ impl ClipTokenizer {
         words
     }
 
-    pub fn max_length(&self) -> usize {
-        self.max_length
+    pub fn max_len(&self) -> usize {
+        self.config.model_max_length
+    }
+
+    pub fn start_token(&self) -> Token {
+        self.start_token
+    }
+
+    pub fn end_token(&self) -> Token {
+        self.end_token
     }
 }
 
@@ -149,43 +163,46 @@ struct TokenConfig {
     content: String,
 }
 
-struct ChunkIter<'a> {
-    inner: &'a str,
+struct TokenIter<'a> {
+    text: &'a str,
+    bos_token: &'a str,
+    eos_token: &'a str,
 }
 
-impl<'a> ChunkIter<'a> {
-    fn new(inner: &'a str) -> Self {
-        Self { inner }
+impl<'a> TokenIter<'a> {
+    fn new(text: &'a str, bos_token: &'a str, eos_token: &'a str) -> Self {
+        Self {
+            text,
+            bos_token,
+            eos_token,
+        }
     }
 
     #[inline]
     fn split_off(&mut self, n: usize) -> &'a str {
-        let (ret, rest) = self.inner.split_at(n);
-        self.inner = rest;
+        let (ret, rest) = self.text.split_at(n);
+        self.text = rest;
         ret
     }
 }
 
-impl<'a> Iterator for ChunkIter<'a> {
+impl<'a> Iterator for TokenIter<'a> {
     type Item = &'a str;
 
     fn next(&mut self) -> Option<Self::Item> {
-        const START_TOKEN: &str = "<|startoftext|>";
-        const END_TOKEN: &str = "<|endoftext|>";
-
-        match self.inner.as_bytes() {
+        match self.text.as_bytes() {
             [b'\'', b's' | b't' | b'm' | b'd', ..] => Some(self.split_off(2)),
             [b'\'', c0, c1, ..] if matches!(&[*c0, *c1], b"re" | b"ve" | b"ll") => {
                 Some(self.split_off(3))
             }
-            [b'<', ..] if self.inner.starts_with(START_TOKEN) => {
-                Some(self.split_off(START_TOKEN.len()))
+            [b'<', ..] if self.text.starts_with(self.bos_token) => {
+                Some(self.split_off(self.bos_token.len()))
             }
-            [b'<', ..] if self.inner.starts_with(END_TOKEN) => {
-                Some(self.split_off(END_TOKEN.len()))
+            [b'<', ..] if self.text.starts_with(self.eos_token) => {
+                Some(self.split_off(self.eos_token.len()))
             }
             _ => {
-                let mut chars = self.inner.char_indices();
+                let mut chars = self.text.char_indices();
                 match chars.next()? {
                     (i, c) if c.is_whitespace() => {
                         self.split_off(i + c.len_utf8());
@@ -221,3 +238,49 @@ pub static TABLE: [char; 256] = [
     'ä', 'å', 'æ', 'ç', 'è', 'é', 'ê', 'ë', 'ì', 'í', 'î', 'ï', 'ð', 'ñ', 'ò', 'ó', 'ô', 'õ', 'ö',
     '÷', 'ø', 'ù', 'ú', 'û', 'ü', 'ý', 'þ', 'ÿ',
 ];
+
+#[cfg(test)]
+mod test {
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    fn new_token_iter<'a>(text: &'a str) -> TokenIter<'a> {
+        TokenIter::new(text, "<|startoftext|>", "<|endoftext|>")
+    }
+
+    #[test]
+    fn split_apostrophe() {
+        assert_eq!(
+            new_token_iter("You're a wizard, Harry.").collect::<Vec<_>>(),
+            &["You", "'re", "a", "wizard", ",", "Harry", "."]
+        );
+    }
+
+    #[test]
+    fn trim_whitespace() {
+        assert_eq!(
+            new_token_iter(" I'll  be   back .  ").collect::<Vec<_>>(),
+            &["I", "'ll", "be", "back", "."]
+        );
+    }
+
+    #[test]
+    fn pass_start_end_tokens() {
+        assert_eq!(
+            new_token_iter("<|startoftext|>There's no place like home.<|endoftext|>")
+                .collect::<Vec<_>>(),
+            &[
+                "<|startoftext|>",
+                "There",
+                "'s",
+                "no",
+                "place",
+                "like",
+                "home",
+                ".",
+                "<|endoftext|>"
+            ]
+        );
+    }
+}

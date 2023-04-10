@@ -2,7 +2,7 @@ use std::fmt;
 
 use half::f16;
 use ndarray::{CowArray, Dimension};
-use ort::tensor::{FromArray, InputTensor, TensorDataToType};
+use ort::tensor::{InputTensor, TensorDataToType};
 use ort::OrtError;
 use thiserror::Error;
 
@@ -10,9 +10,11 @@ mod text_to_image;
 pub use text_to_image::TextToImage;
 
 pub trait PipelineMode: Default {
-    type Float: Copy + Into<f32> + TensorDataToType + 'static;
+    type Float: Copy + Default + Into<f32> + TensorDataToType + 'static;
 
-    fn create_tensor<D: Dimension>(array: CowArray<'_, f32, D>) -> InputTensor;
+    fn from_f32_array<D: Dimension>(array: CowArray<'_, f32, D>) -> CowArray<'_, Self::Float, D>;
+    fn into_f32_array<D: Dimension>(array: CowArray<'_, Self::Float, D>) -> CowArray<'_, f32, D>;
+    fn create_tensor<D: Dimension>(cow: CowArray<'_, f32, D>) -> InputTensor;
 }
 
 #[derive(Debug, Default)]
@@ -22,8 +24,18 @@ impl PipelineMode for Fp32Mode {
     type Float = f32;
 
     #[inline]
-    fn create_tensor<D: Dimension>(array: CowArray<'_, f32, D>) -> InputTensor {
-        InputTensor::from_array(array.into_owned().into_dyn())
+    fn from_f32_array<D: Dimension>(array: CowArray<'_, f32, D>) -> CowArray<'_, Self::Float, D> {
+        array
+    }
+
+    #[inline]
+    fn into_f32_array<D: Dimension>(array: CowArray<'_, Self::Float, D>) -> CowArray<'_, f32, D> {
+        array
+    }
+
+    #[inline]
+    fn create_tensor<D: Dimension>(cow: CowArray<'_, f32, D>) -> InputTensor {
+        InputTensor::FloatTensor(cow.into_owned().into_dyn())
     }
 }
 
@@ -33,9 +45,16 @@ pub struct Fp16Mode;
 impl PipelineMode for Fp16Mode {
     type Float = f16;
 
-    #[inline]
-    fn create_tensor<D: Dimension>(array: CowArray<'_, f32, D>) -> InputTensor {
-        InputTensor::from_array(array.map(|&f| f16::from_f32(f)).into_dyn())
+    fn from_f32_array<D: Dimension>(array: CowArray<'_, f32, D>) -> CowArray<'_, Self::Float, D> {
+        array.map(|&x| f16::from_f32(x)).into()
+    }
+
+    fn into_f32_array<D: Dimension>(array: CowArray<'_, Self::Float, D>) -> CowArray<'_, f32, D> {
+        array.map(|&x| x.into()).into()
+    }
+
+    fn create_tensor<D: Dimension>(cow: CowArray<'_, f32, D>) -> InputTensor {
+        InputTensor::Float16Tensor(Self::from_f32_array(cow).into_owned().into_dyn())
     }
 }
 
