@@ -1,9 +1,9 @@
 use std::error::Error as StdError;
 
+use image::io::Reader as ImageReader;
 use latentspace::pipelines::{Fp16Mode, ImagePipeline, Prompt};
 use latentspace::schedulers::EulerAncestral;
 use latentspace::{ort, Checkpoint, Device, DeviceConfig, DeviceId};
-
 fn main() -> Result<(), Box<dyn StdError>> {
     tracing_subscriber::fmt::init();
 
@@ -25,6 +25,10 @@ fn main() -> Result<(), Box<dyn StdError>> {
                 .to_owned(),
             negative: "".to_owned(),
         })
+        .with_input_image(
+            ImageReader::open("/home/me/pictures/input.png")?.decode()?,
+            1.,
+        )
         .with_seed(rand::random())
         .execute(&checkpoint, &mut EulerAncestral::default())?;
 

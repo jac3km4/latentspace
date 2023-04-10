@@ -27,6 +27,17 @@ impl Scheduler for EulerAncestral {
     }
 
     #[inline]
+    fn add_noise(
+        &self,
+        step: usize,
+        steps: &Timesteps,
+        sample: ArrayView4<'_, f32>,
+        noise: ArrayView4<'_, f32>,
+    ) -> Array4<f32> {
+        self.0.add_noise(step, steps, sample, noise)
+    }
+
+    #[inline]
     fn timesteps(&mut self, num_inference_steps: usize) -> Timesteps {
         self.0.timesteps(num_inference_steps)
     }

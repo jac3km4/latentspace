@@ -19,6 +19,14 @@ pub trait Scheduler {
         rng: &mut impl Rng,
     ) -> Array4<f32>;
 
+    fn add_noise(
+        &self,
+        step: usize,
+        steps: &Timesteps,
+        sample: ArrayView4<'_, f32>,
+        noise: ArrayView4<'_, f32>,
+    ) -> Array4<f32>;
+
     fn timesteps(&mut self, num_inference_steps: usize) -> Timesteps;
     fn init_scale_multiplier(&self) -> f32;
     fn scale_multiplier(&self, sigma: f32) -> f32;

@@ -49,6 +49,17 @@ impl Scheduler for Euler {
         &sample + &output * (steps.sigmas[step + 1] - steps.sigmas[step])
     }
 
+    fn add_noise(
+        &self,
+        step: usize,
+        steps: &Timesteps,
+        sample: ArrayView4<'_, f32>,
+        noise: ArrayView4<'_, f32>,
+    ) -> Array4<f32> {
+        let sigma = steps.sigmas[step];
+        &sample + &noise * sigma
+    }
+
     fn timesteps(&mut self, num_inference_steps: usize) -> Timesteps {
         let timesteps = Array1::linspace(self.num_steps as f32 - 1., 0., num_inference_steps);
 

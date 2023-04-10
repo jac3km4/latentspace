@@ -1,13 +1,14 @@
 use std::fmt;
 
 use half::f16;
+use image::DynamicImage;
 use ndarray::{CowArray, Dimension};
 use ort::tensor::{InputTensor, TensorDataToType};
 use ort::OrtError;
 use thiserror::Error;
 
-mod text_to_image;
-pub use text_to_image::TextToImage;
+mod image_pipeline;
+pub use image_pipeline::ImagePipeline;
 
 pub trait PipelineMode: Default {
     type Float: Copy + Default + Into<f32> + TensorDataToType + 'static;
@@ -56,6 +57,12 @@ impl PipelineMode for Fp16Mode {
     fn create_tensor<D: Dimension>(cow: CowArray<'_, f32, D>) -> InputTensor {
         InputTensor::Float16Tensor(Self::from_f32_array(cow).into_owned().into_dyn())
     }
+}
+
+#[derive(Debug)]
+pub enum PipelineInput {
+    EmptyLatent { width: usize, height: usize },
+    Image { image: DynamicImage, denoise: f32 },
 }
 
 #[derive(Debug, Clone, Copy)]

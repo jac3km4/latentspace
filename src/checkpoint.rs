@@ -1,3 +1,4 @@
+use std::iter;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -14,7 +15,7 @@ use crate::tokenizers::clip::{ClipTokenizer, TokenizerError};
 #[derive(Debug)]
 pub struct Checkpoint<Mode> {
     clip: ClipTokenizer,
-    _vae_encoder: ort::Session,
+    vae_encoder: ort::Session,
     vae_decoder: ort::Session,
     text_encoder: ort::Session,
     unet: ort::Session,
@@ -32,7 +33,7 @@ impl<Mode: PipelineMode> Checkpoint<Mode> {
         let text_encoder = ort::SessionBuilder::new(&env)?
             .with_execution_providers(devices.text_encoder.into_execution_providers())?
             .with_model_from_file(model_dir.as_ref().join("text_encoder").join("model.onnx"))?;
-        let _vae_encoder = ort::SessionBuilder::new(&env)?
+        let vae_encoder = ort::SessionBuilder::new(&env)?
             .with_execution_providers(devices.vae_encoder.into_execution_providers())?
             .with_optimization_level(ort::GraphOptimizationLevel::Level3)?
             .with_model_from_file(model_dir.as_ref().join("vae_encoder").join("model.onnx"))?;
@@ -50,7 +51,7 @@ impl<Mode: PipelineMode> Checkpoint<Mode> {
             vae_decoder,
             text_encoder,
             unet,
-            _vae_encoder,
+            vae_encoder,
             _safety_checker: None, // TODO: add safety checker
             _mode: Mode::default(),
         })
@@ -75,6 +76,46 @@ impl<Mode: PipelineMode> Checkpoint<Mode> {
         };
         let output = output.try_extract()?;
         Ok(output)
+    }
+
+    pub(crate) fn encode_latents(
+        &self,
+        image: &DynamicImage,
+        batch_size: usize,
+    ) -> Result<EncodedLatents, PipelineError> {
+        let rgbf = image.to_rgb32f().into_raw();
+
+        let image_height = image.height() as usize;
+        let image_width = image.width() as usize;
+        let cropped_height = image_height / 64 * 64;
+        let cropped_width = image_width / 64 * 64;
+        let array =
+            Array3::from_shape_vec((image_height, image_width, 3), rgbf)?.map(|&f| (f * 2. - 1.));
+
+        let batch = iter::repeat(array.slice(s![..cropped_height, ..cropped_width, ..]))
+            .take(batch_size)
+            .fold(
+                Array4::default((0, cropped_height, cropped_width, 3)),
+                |mut acc, el| {
+                    acc.push(Axis(0), el).unwrap();
+                    acc
+                },
+            )
+            .permuted_axes([0, 3, 1, 2]);
+
+        let result = self.vae_encoder.run([Mode::create_tensor(batch.into())])?;
+        let [result] = &result[..] else {
+            return Err(PipelineError::OutputError(Stage::VaeEncode))
+        };
+        let result = result.try_extract()?;
+        let result: ArrayView4<'_, Mode::Float> = result.view().clone().into_dimensionality()?;
+        let latents = &Mode::into_f32_array(result.into()) * 0.18215;
+
+        Ok(EncodedLatents {
+            latents,
+            width: cropped_width,
+            height: cropped_height,
+        })
     }
 
     pub(crate) fn decode_latents(
@@ -126,4 +167,11 @@ pub enum CheckpointLoadError {
     Ort(#[from] OrtError),
     #[error("{0}")]
     Tokenizer(#[from] TokenizerError),
+}
+
+#[derive(Debug)]
+pub(crate) struct EncodedLatents {
+    pub latents: Array4<f32>,
+    pub width: usize,
+    pub height: usize,
 }

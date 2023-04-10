@@ -46,6 +46,17 @@ impl Scheduler for Lms {
     }
 
     #[inline]
+    fn add_noise(
+        &self,
+        step: usize,
+        steps: &Timesteps,
+        sample: ArrayView4<'_, f32>,
+        noise: ArrayView4<'_, f32>,
+    ) -> Array4<f32> {
+        self.inner.add_noise(step, steps, sample, noise)
+    }
+
+    #[inline]
     fn timesteps(&mut self, num_inference_steps: usize) -> Timesteps {
         self.inner.timesteps(num_inference_steps)
     }

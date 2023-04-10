@@ -7,11 +7,11 @@ This library aims to be a a complete Stable Diffusion implementation in idiomati
 Legend: 🐥 complete, 🐣 partially implemented, 🥚 not available yet
 
 - 🐥 txt2img
-- 🥚 img2img and inpainting
-- 🐥 support CUDA and TensorRT inference
-    - txt2img runs in ~2 seconds for a 512x512 image on modern Nvidia hardware!
+- 🐣 img2img and inpainting
+- 🐥 CUDA and TensorRT accelerated inference
+    - txt2img completes in ~2 seconds for a 512x512 image on modern Nvidia hardware
 - 🐥 fp32 and fp16 models
-    - fp16 models can be used to save space and memory
+    - fp16 models can be leveraged to save space and memory
 - 🐣 support different schedulers
     - Euler, EulerAncestral and LMS for now
 - 🐥 long prompt weighting
@@ -28,4 +28,5 @@ Checkpoints have to be converted to the ONNX format before use. I've built a con
 ```
 
 ## examples
-See [txt2img.rs](/examples/txt2img.rs) for a text-to-image example.
+- [Text-to-image example](/examples/txt2img.rs)
+- [Image-to-image example](/examples/img2img.rs)
